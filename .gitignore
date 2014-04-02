@@ -1,0 +1,54 @@
+# Zabbix Agent binaries
+src/
+
+# .Net Project incidentals
+*.[Oo]bj
+*.user
+*.aps
+*.pch
+*.vspscc
+*.vssscc
+*_i.c
+*_p.c
+*.ncb
+*.suo
+*.tlb
+*.tlh
+*.[Cc]ache
+*.ilk
+*.log
+*.lib
+*.sbr
+*.sdf
+*.opensdf
+*.unsuccessfulbuild
+ipch/
+obj/
+Bin
+[Dd]ebug*/
+[Rr]elease*/
+Ankh.NoLoad
+_ReSharper*/
+*.resharper
+[Tt]est[Rr]esult*
+[Bb]uild/
+.nuget/
+packages/
+x86/
+x64/
+
+# OS junk files
+[Tt]humbs.db
+*.DS_Store
+
+# Common Ignorables
+*.exe
+*.tar.gz
+*.gz
+*.tgz
+*.tmp
+*.swp
+*.bak
+*.backup
+~*
+*.msi

@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Zabbix Agent Windows Installer Package
+  Author: Ryan Armstrong <ryan@cavaliercoder.com>
+  
+  This WXS file targets Wix Toolkit v.3.8.1128
+
+  To build this package the Zabbix Windows Agent v2.2.1 binaries are required
+  to be extracted into 'src/' subdirectory.
+      
+  The agent binaries are available from the following URL:
+  http://www.zabbix.com/downloads/2.2.1/zabbix_agents_2.2.1.win.zip
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <?define AgentName = "Zabbix Agent" ?>
+  <?define AgentVersion = "2.2.1.40801" ?>
+  
+  <!-- Which platform are we building for ? -->
+  <?if $(var.Platform) = x64 ?>
+    <!-- 64 Bit Platform -->
+    <?define Win64 ?>
+    <?define ProductName = "$(var.AgentName) (64bit)" ?>
+    <?define PlatformProgramFilesFolder = "ProgramFiles64Folder" ?>
+    <?define BinDir = "win64" ?>
+  <?else ?>
+    <!-- 32 Bit Platform -->
+    <?define ProductName = "$(var.AgentName) (32bit)" ?>
+    <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
+    <?define BinDir = "win32" ?>
+  <?endif ?>
+  <Product Id="*" Name="$(var.ProductName)" Version="$(var.AgentVersion)" Manufacturer="Zabbix SIA" UpgradeCode="30e74e6f-754f-404d-903c-68e0d614939c" Language="1033">
+    <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine" InstallPrivileges="elevated"/>
+    
+    <!-- Prevent 32bit MSI installing on 64bit systems -->
+    <?ifndef Win64 ?>
+    <Condition Message="Please install the 64bit version of $(var.AgentName)">Installed OR (NOT VersionNT64)</Condition>
+    <?endif ?>
+
+    <!-- Downgrade error message-->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+
+    <!-- Create a single MSI file -->
+    <MediaTemplate EmbedCab="yes"/>
+    
+    <!-- Use basic UI template and allow install folder to change -->
+    <UI>
+      <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+      <UIRef Id="WixUI_InstallDirMod" />
+    </UI>
+
+    <!-- Prevent files-in-use dialog -->
+    <Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable"/>
+   
+    <!-- Default feature -->
+    <Feature Id="ZabbixAgent" Level="1">
+      <ComponentGroupRef Id="EnvVars" />
+      <ComponentGroupRef Id="Binaries" />
+      <ComponentGroupRef Id="Configuration" />
+      <ComponentGroupRef Id="Scripts" />
+    </Feature>
+    
+    <!-- Folder structure -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="$(var.PlatformProgramFilesFolder)">
+        <Directory Id="INSTALLFOLDER" Name="Zabbix Agent">
+          <Directory Id="BinariesFolder" Name="bin">
+            <Directory Id="ArchBinariesFolder" Name="$(var.BinDir)" />
+          </Directory>
+          <Directory Id="ConfigurationFolder" Name="conf" />
+          <Directory Id="ScriptsFolder" Name="scripts">
+            <Directory Id="ScriptsIncludeFolder" Name="include" />
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <!-- Environment Variables -->
+    <ComponentGroup Id="EnvVars" Directory="ConfigurationFolder">
+      <!-- ZBX_AGENT_BASE Environment Variable -->
+      <Component Id="BaseEnvVar" Guid="{9583C630-9C59-4C37-BF07-C04B91032B15}" KeyPath="yes">
+        <Environment Id="BaseEnvVarDef" Name="ZBX_AGENT_BASE" Action="set" Part="all" Permanent="no" Value="[INSTALLFOLDER]" System="yes" />
+      </Component>
+
+      <!-- PATH Environment Variable-->
+      <Component Id="PathEnvVar" Guid="{C873B777-091F-4445-910C-A6A77EF55AB0}" KeyPath="yes">
+        <Environment Id="PathEnvVarDef" Name="PATH" Action="set" Part="last" Permanent="no" Value="[INSTALLFOLDER]bin\$(var.BinDir);[INSTALLFOLDER]scripts" System="yes" />
+      </Component>
+    </ComponentGroup>
+    
+    <!-- Platform binary files -->
+    <ComponentGroup Id="Binaries" Directory="ArchBinariesFolder">
+      <Component Id="ZabbixAgent" Guid="*">
+        <File Id="ZabbixAgentBin" Name="zabbix_agentd.exe" Source="src\bin\$(var.BinDir)\zabbix_agentd.exe" />
+      </Component>
+      <Component Id="ZabbixSender" Guid="*">
+        <File Id="ZabbixSenderBin" Name="zabbix_sender.exe" Source="src\bin\$(var.BinDir)\zabbix_sender.exe"/>
+      </Component>
+      <Component Id="ZabbixGet" Guid="*">
+        <File Id="ZabbixGetBin" Name="zabbix_get.exe" Source="src\bin\$(var.BinDir)\zabbix_get.exe"/>
+      </Component>
+    </ComponentGroup>
+
+    <!-- Agent Configuration Components -->
+    <ComponentGroup Id="Configuration" Directory="ConfigurationFolder">
+      <!-- Agent Configuration File -->
+      <Component Id="AgentConfiguration" Guid="*">
+        <File Id="AgentConfigurationFile" Name="zabbix_agentd.win.conf" Source="src\conf\zabbix_agentd.win.conf"/>
+      </Component>
+    </ComponentGroup>
+
+    <!-- Custom Script Components -->
+    <ComponentGroup Id="Scripts" Directory="ScriptsFolder">
+      <ComponentGroupRef Id="SharedScripts" />
+      
+      <!-- Sample Custom Script -->
+      <!--
+      <Component Id="CustomScript" Guid="*">
+        <File Id="CustomScriptFile" Name="CustomScript.ps1" Source="src\scripts\CustomScript.ps1" />
+      </Component>
+      -->
+    </ComponentGroup>
+
+    <!-- Shared Script (Includes) Components -->
+    <ComponentGroup Id="SharedScripts" Directory="ScriptsIncludeFolder" />
+    
+    <!-- Install Service Actions -->
+    <CustomAction Id="InstallService" Directory="ArchBinariesFolder" ExeCommand="&quot;[#ZabbixAgentBin]&quot; --install --config &quot;[#AgentConfigurationFile]&quot;" Execute="deferred" Return="check" Impersonate="no" />
+    <CustomAction Id="StartService" Directory="ArchBinariesFolder" ExeCommand="&quot;[#ZabbixAgentBin]&quot; --start --config &quot;[#AgentConfigurationFile]&quot;" Execute="deferred" Return="check" Impersonate="no"/>
+
+    <!-- Uninstall Service Actions -->
+    <CustomAction Id="StopService" Directory="ArchBinariesFolder" ExeCommand="&quot;[#ZabbixAgentBin]&quot; --stop --config &quot;[#AgentConfigurationFile]&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
+    <CustomAction Id="RemoveService" Directory="ArchBinariesFolder" ExeCommand="&quot;[#ZabbixAgentBin]&quot; --uninstall --config &quot;[#AgentConfigurationFile]&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
+
+    <InstallExecuteSequence>      
+      <!-- Install Service Sequence -->
+      <Custom Action="InstallService" After="InstallFiles">NOT Installed</Custom>
+      <Custom Action="StartService" After="InstallService">NOT Installed</Custom>
+
+      <!-- Uninstall Service Sequence -->
+      <Custom Action="StopService" Before="RemoveFiles">Installed</Custom>
+      <Custom Action="RemoveService" Before="StopService">Installed</Custom>
+    </InstallExecuteSequence>
+  </Product>
+
+  <!-- Copy and Modify default WixUI_InstallDir Dialog Set -->
+  <!-- Removed EULA Dialog -->
+  <Fragment>
+    <UI Id="WixUI_InstallDirMod">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode" Value="InstallDir" />
+
+      <DialogRef Id="BrowseDlg" />
+      <DialogRef Id="DiskCostDlg" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+
+      <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
+      <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4"><![CDATA[WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg">NOT Installed</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
+
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="DoAction" Value="WixUIValidatePath" Order="2">NOT WIXUI_DONTVALIDATEPATH</Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="SpawnDialog" Value="InvalidDirDlg" Order="3"><![CDATA[NOT WIXUI_DONTVALIDATEPATH AND WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
+      <Publish Dialog="InstallDirDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg" Order="4">WIXUI_DONTVALIDATEPATH OR WIXUI_INSTALLDIR_VALID="1"</Publish>
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1">1</Publish>
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder" Event="SpawnDialog" Value="BrowseDlg" Order="2">1</Publish>
+
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="InstallDirDlg" Order="1">NOT Installed</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2">Installed AND PATCH</Publish>
+
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+
+      <Property Id="ARPNOMODIFY" Value="1" />
+    </UI>
+
+    <UIRef Id="WixUI_Common" />
+  </Fragment>
+</Wix>
