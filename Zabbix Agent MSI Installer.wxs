@@ -5,8 +5,7 @@
   
   This WXS file targets Wix Toolkit v.3.8.1128
 
-  To build this package the Zabbix Windows Agent v2.2.1 binaries are required
-  to be extracted into 'src/' subdirectory.
+  To build this package the Zabbix Windows Agent v2.2.1 binaries are required to be extracted into 'src/' subdirectory (or the path defined in SrcPath).
       
   The agent binaries are available from the following URL:
   http://www.zabbix.com/downloads/2.2.1/zabbix_agents_2.2.1.win.zip
@@ -14,6 +13,7 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <?define AgentName = "Zabbix Agent" ?>
   <?define AgentVersion = "2.2.1.40801" ?>
+  <?define SrcPath = "src" ?>
   
   <!-- Which platform are we building for ? -->
   <?if $(var.Platform) = x64 ?>
@@ -90,13 +90,13 @@
     <!-- Platform binary files -->
     <ComponentGroup Id="Binaries" Directory="ArchBinariesFolder">
       <Component Id="ZabbixAgent" Guid="*">
-        <File Id="ZabbixAgentBin" Name="zabbix_agentd.exe" Source="src\bin\$(var.BinDir)\zabbix_agentd.exe" />
+        <File Id="ZabbixAgentBin" Name="zabbix_agentd.exe" Source="$(var.SrcPath)\bin\$(var.BinDir)\zabbix_agentd.exe" />
       </Component>
       <Component Id="ZabbixSender" Guid="*">
-        <File Id="ZabbixSenderBin" Name="zabbix_sender.exe" Source="src\bin\$(var.BinDir)\zabbix_sender.exe"/>
+        <File Id="ZabbixSenderBin" Name="zabbix_sender.exe" Source="$(var.SrcPath)\bin\$(var.BinDir)\zabbix_sender.exe"/>
       </Component>
       <Component Id="ZabbixGet" Guid="*">
-        <File Id="ZabbixGetBin" Name="zabbix_get.exe" Source="src\bin\$(var.BinDir)\zabbix_get.exe"/>
+        <File Id="ZabbixGetBin" Name="zabbix_get.exe" Source="$(var.SrcPath)\bin\$(var.BinDir)\zabbix_get.exe"/>
       </Component>
     </ComponentGroup>
 
@@ -104,7 +104,7 @@
     <ComponentGroup Id="Configuration" Directory="ConfigurationFolder">
       <!-- Agent Configuration File -->
       <Component Id="AgentConfiguration" Guid="*">
-        <File Id="AgentConfigurationFile" Name="zabbix_agentd.win.conf" Source="src\conf\zabbix_agentd.win.conf"/>
+        <File Id="AgentConfigurationFile" Name="zabbix_agentd.win.conf" Source="$(var.SrcPath)\conf\zabbix_agentd.win.conf"/>
       </Component>
     </ComponentGroup>
 
@@ -115,7 +115,7 @@
       <!-- Sample Custom Script -->
       <!--
       <Component Id="CustomScript" Guid="*">
-        <File Id="CustomScriptFile" Name="CustomScript.ps1" Source="src\scripts\CustomScript.ps1" />
+        <File Id="CustomScriptFile" Name="CustomScript.ps1" Source="$(var.SrcPath)\scripts\CustomScript.ps1" />
       </Component>
       -->
     </ComponentGroup>
