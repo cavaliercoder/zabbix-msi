@@ -45,14 +45,18 @@ If you are building the agent binaries yourself or you wish to source them from 
 Let's take a look inside the wxs file to see how it all fits together. I'll assume you have a basic understanding of XML, Windows Installer technologies and the WiX Toolset. Most of the file will be self explanatory with some knowledge of these components, so I'll focus on the Zabbix specific components.
 
 __Preprocessor Variables__
+
 The following variables define the name of version of the agent to be install, as well as the relative path for the agent binaries.
 
+```xml
 	<?define AgentName = "Zabbix Agent" ?>
 	<?define AgentVersion = "2.2.1.40801" ?>
 	<?define SrcPath = "src" ?>
-	
+```
+
 The next section sets required variables according to the machine architecture being built. These variables define the MSI product name, install destination folder and agent binaries source path (for the correct architecture).
 
+```xml
 	<?if $(var.Platform) = x64 ?>
 		<!-- 64 Bit Platform -->
 		<?define Win64 ?>
@@ -65,22 +69,30 @@ The next section sets required variables according to the machine architecture b
 		<?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
 		<?define BinDir = "win32" ?>
 	<?endif ?>
+```
 
 __Prevent 32bit install on 64bit system__
+
 The Zabbix agent documentation recommends using the 64bit binaries on 64bit Windows systems. From experience I can tell you this is good because 32bit applications cannot access some system resources on 64bit Windows systems such as 64bit registry hives, the `C:\Program Files` folder, etc.
 
+```xml
 	<!-- Prevent 32bit MSI installing on 64bit systems -->
 	<?ifndef Win64 ?>
 	<Condition Message="Please install the 64bit version of $(var.AgentName)">Installed OR (NOT VersionNT64)</Condition>
 	<?endif ?>
+```
 
 __Prevent 'Files in Use' dialogue__
+
 Because the Zabbix agent runs as a service, when you attempt to upgrade or uninstall the MSI, Windows Installer will by default complain that the agent service is running. I manually handle the starting and stopping of the service later, so I prevent this dialogue from showing.
 
+```xml
 	<!-- Prevent files-in-use dialog -->
 	<Property Id="MSIRESTARTMANAGERCONTROL" Value="Disable"/>
+```
 
 __Environment Variables__
+
 One of the nice things the Zabbix agent configuration offers is variable substitution in the `UserParameter` directives. In the case of an MSI installer, we can't always be certain where the agent scripts will be installed to so it doesn't make sense to add a full path to the scripts defined as User Parameters. I've solved this problem in the MSI build by setting an environment variable `ZBX_AGENT_BASE` to the path Windows Installer ultimately installs the MSI to.
 
 Effectively you can now define scripts paths for User Parameters that will always resolve; no matter where the MSI is installed. Example:
@@ -90,6 +102,7 @@ In addition, the `bin` and `scripts` path of the installed files is added to the
 
 The Environment Variable components have their GUIDs predefined in the XML as Windows Installer can't seem to generate GUIDs for components not installed to a predefined list of folders (including `C:\Program files`, etc.)
 
+```xml
 	<!-- Environment Variables -->
     <ComponentGroup Id="EnvVars" Directory="ConfigurationFolder">
       <!-- ZBX_AGENT_BASE Environment Variable -->
@@ -102,10 +115,13 @@ The Environment Variable components have their GUIDs predefined in the XML as Wi
         <Environment Id="PathEnvVarDef" Name="PATH" Action="set" Part="last" Permanent="no" Value="[INSTALLFOLDER]bin\$(var.BinDir);[INSTALLFOLDER]scripts" System="yes" />
       </Component>
     </ComponentGroup>
+```
 
 __Platform Binaries__
+
 Earlier in the document we defined the `BinDir` preprocessor variable to be either `win32` or `win64`. This correlates to a subdirectory of `bin` in which the platform specific binaries for the Zabbix agent reside. I know use this variable to source the correct binaries for the MSI build.
 
+```xml
     <!-- Platform binary files -->
     <ComponentGroup Id="Binaries" Directory="ArchBinariesFolder">
       <Component Id="ZabbixAgent" Guid="*">
@@ -118,11 +134,14 @@ Earlier in the document we defined the `BinDir` preprocessor variable to be eith
         <File Id="ZabbixGetBin" Name="zabbix_get.exe" Source="$(var.SrcPath)\bin\$(var.BinDir)\zabbix_get.exe"/>
       </Component>
     </ComponentGroup>
+```
 
 __Custom Scripts__
+
 If you have custom scripts you would like to bundle with the MSI install for custom User Parameters, this is where they are defined.
 These will be installed to `%ZBX_AGENT_BASE%\scripts\` to be referenced in your agent configuration file.
 
+```xml
     <!-- Custom Script Components -->
     <ComponentGroup Id="Scripts" Directory="ScriptsFolder">
       <ComponentGroupRef Id="SharedScripts" />
@@ -134,15 +153,20 @@ These will be installed to `%ZBX_AGENT_BASE%\scripts\` to be referenced in your 
       </Component>
       -->
     </ComponentGroup>
-	
-A placeholder is also created for shared libraries (Perl modules, PowerShell modules, etc.) into which you can define share file components.
+```
 
+A place-holder is also created for shared libraries (Perl modules, PowerShell modules, etc.) into which you can define share file components.
+
+```xml
     <!-- Shared Script (Includes) Components -->
     <ComponentGroup Id="SharedScripts" Directory="ScriptsIncludeFolder" />
+```
 
 __Installation Actions__
+
 Once the Zabbix agent is installed on a target system, it makes sense to configure and start the agent service. The following directives make this light work and have been tested on Windows Server 2000 through 2012 in various install locations.
 
+```xml
     <!-- Install Service Actions -->
     <CustomAction Id="InstallService" Directory="ArchBinariesFolder" ExeCommand="&quot;[#ZabbixAgentBin]&quot; --install --config &quot;[#AgentConfigurationFile]&quot;" Execute="deferred" Return="check" Impersonate="no" />
     <CustomAction Id="StartService" Directory="ArchBinariesFolder" ExeCommand="&quot;[#ZabbixAgentBin]&quot; --start --config &quot;[#AgentConfigurationFile]&quot;" Execute="deferred" Return="check" Impersonate="no"/>
@@ -150,8 +174,11 @@ Once the Zabbix agent is installed on a target system, it makes sense to configu
     <!-- Uninstall Service Actions -->
     <CustomAction Id="StopService" Directory="ArchBinariesFolder" ExeCommand="&quot;[#ZabbixAgentBin]&quot; --stop --config &quot;[#AgentConfigurationFile]&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
     <CustomAction Id="RemoveService" Directory="ArchBinariesFolder" ExeCommand="&quot;[#ZabbixAgentBin]&quot; --uninstall --config &quot;[#AgentConfigurationFile]&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
+```
 
 The custom actions are scheduled for execution as follows:
+
+```xml
     <InstallExecuteSequence>      
       <!-- Install Service Sequence -->
       <Custom Action="InstallService" After="InstallFiles">NOT Installed</Custom>
@@ -161,8 +188,10 @@ The custom actions are scheduled for execution as follows:
       <Custom Action="StopService" Before="RemoveFiles">Installed</Custom>
       <Custom Action="RemoveService" Before="StopService">Installed</Custom>
     </InstallExecuteSequence>
+```
 
 __UI Definition__
+
 The final `<UI Id="WixUI_InstallDirMod">` section is copied from the `WixUI_InstallDir` dialogue set defined in WiX sources, with the EULA dialogue removed so end users are not required to accept a generic EULA.
 
 ### Links
